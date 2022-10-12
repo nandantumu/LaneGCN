@@ -158,10 +158,11 @@ def worker_init_fn(pid):
     random.seed(random_seed)
 
 
+    
 def train(epoch, config, train_loader, net, loss, post_process, opt, val_loader=None):
     train_loader.sampler.set_epoch(int(epoch))
     net.train()
-
+    
     num_batches = len(train_loader)
     epoch_per_batch = 1.0 / num_batches
     save_iters = int(np.ceil(config["save_freq"] * num_batches))
@@ -169,15 +170,25 @@ def train(epoch, config, train_loader, net, loss, post_process, opt, val_loader=
         config["display_iters"] / (hvd.size() * config["batch_size"])
     )
     val_iters = int(config["val_iters"] / (hvd.size() * config["batch_size"]))
+    
+    # Curriculum Step Size
+    step_size = config["curriculum/batches_per_output"]
 
     start_time = time.time()
     metrics = dict()
-    for i, data in tqdm(enumerate(train_loader),disable=hvd.rank()):
+    for i, data in tqdm(enumerate(train_loader), disable=hvd.rank()):
         epoch += epoch_per_batch
         data = dict(data)
 
         output = net(data)
-        loss_out = loss(output, data)
+        # Curriculum implementation
+        batches_complete = epoch*num_batches
+        curriculum_step = batches_complete//step_size
+        curriculum_step = max(curriculum_step, config['num_preds'])
+        if not config['curriculum']:
+            curriculum_step = config["num_preds"]
+        
+        loss_out = loss(output, data, curriculum_step)
         post_out = post_process(output, data)
         post_process.append(metrics, loss_out, post_out)
 
@@ -216,7 +227,7 @@ def val(config, data_loader, net, loss, post_process, epoch):
         data = dict(data)
         with torch.no_grad():
             output = net(data)
-            loss_out = loss(output, data)
+            loss_out = loss(output, data, config['num_preds'])
             post_out = post_process(output, data)
             post_process.append(metrics, loss_out, post_out)
 
