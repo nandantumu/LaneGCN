@@ -79,7 +79,7 @@ def main():
     preds = {}
     gts = {}
     cities = {}
-    for ii, data in tqdm(enumerate(data_loader)):
+    for ii, data in tqdm(enumerate(data_loader), total=len(data_loader)):
         data = dict(data)
         with torch.no_grad():
             output = net(data)
@@ -95,7 +95,7 @@ def main():
         gts = gts,
         cities = cities,
     )
-    # torch.save(res,f"{config['save_dir']}/results.pkl")
+    torch.save(res,f"{config['save_dir']}/results.pkl")
     
     # evaluate or submit
     if args.split == "val":
