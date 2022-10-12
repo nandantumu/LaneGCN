@@ -92,17 +92,17 @@ config["mgn"] = 0.2
 config["cls_th"] = 2.0
 config["cls_ignore"] = 0.2
 # Stuff I added:
-config["wheelbase"] = 1.0
+config["wheelbase"] = 0.5
 config["timestep"] = 0.1
 config["rnn/input_dims"] = 3
 config["rnn/hidden_dims"] = 4
 config["rnn/num_layers"] = 2
 ## Curriculum Training parameters
-config["curriculum"] = True
+config["curriculum"] = False
 config["curriculum/batches_per_output"] = 256
 ## Bounded Residual Parameters
 config['brm/hidden_dim'] = 64
-config['brm/epsilon'] = 1
+config['brm/epsilon'] = 0.5
 ### end of config ###
 
 class Net(nn.Module):
@@ -607,8 +607,15 @@ class BoundedResidual(nn.Module):
     def __init__(self, config):
         super(BoundedResidual, self).__init__()
         self.resid = nn.Sequential(
-            nn.Linear(config['num_preds']*4 + config['n_actor'], config['brm/hidden_dim']), 
-            nn.ELU(), 
+            nn.Linear(config['num_preds']*4 + config['n_actor'], config['brm/hidden_dim']),
+            nn.BatchNorm1d(config['brm/hidden_dim']), 
+            nn.ELU(),
+            nn.Linear(config['brm/hidden_dim'], config['brm/hidden_dim']),
+            nn.BatchNorm1d(config['brm/hidden_dim']), 
+            nn.ELU(),
+            nn.Linear(config['brm/hidden_dim'], config['brm/hidden_dim']),
+            nn.BatchNorm1d(config['brm/hidden_dim']), 
+            nn.ELU(),  
             nn.Linear(config['brm/hidden_dim'], config['num_preds']*2), 
             nn.Tanh())
         self.epsilon = config['brm/epsilon'] 
@@ -632,7 +639,16 @@ class PhysicsHeader(nn.Module):
         
         self.net = nn.Sequential(
             LinearRes(n_actor, n_actor, norm=norm, ng=ng),
-            nn.Linear(n_actor, 2 * config["num_preds"]),
+            nn.BatchNorm1d(n_actor),
+            nn.ELU(),
+            nn.Linear(n_actor, n_actor),
+            nn.BatchNorm1d(n_actor),
+            nn.ELU(),
+            nn.Linear(n_actor, n_actor),
+            nn.BatchNorm1d(n_actor),
+            nn.ELU(),
+            nn.Linear(n_actor, 2 * config["num_preds"])
+
         )
         
         self.state_estimator = StateEstimator(config)
